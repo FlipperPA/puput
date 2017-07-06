@@ -36,8 +36,10 @@ Contents:
    setup
    editors
    comments
+   feeds
    extending
    importers
+   sites
    settings
    changelog
    authors

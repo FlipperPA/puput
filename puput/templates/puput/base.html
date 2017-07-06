@@ -8,11 +8,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <meta name="title" content="{% block meta_title %}{% if blog_page.seo_title %}{{ blog_page.seo_title }}{% else %}{{ blog_page.title }}{% endif %}{% endblock meta_title %}"/>
     <meta name="description" content="{% block meta_description %}{{ blog_page.search_description }}{% endblock meta_description %}"/>
+    {% block social_share %}{% endblock social_share %}
+    <link rel="canonical" href="{% block canonical %}{% canonical_url %}{% endblock canonical %}"/>
 
     <!--[if lte IE 8]><script src="assets/js/ie/html5shiv.js"></script><![endif]-->
     <!--[if lte IE 8]><link rel="stylesheet" href="assets/css/ie8.css" /><![endif]-->
+<<<<<<< HEAD
     <link href='http://fonts.googleapis.com/css?family=Roboto:400,300,300italic,100italic,100,400italic,500,500italic,700,900,700italic,900italic' rel='stylesheet' type='text/css'>
     <link rel='stylesheet' href='//google-code-prettify.googlecode.com/svn/trunk/src/prettify.css'>
+=======
+    <link href='//fonts.googleapis.com/css?family=Roboto:400,300,300italic,100italic,100,400italic,500,500italic,700,900,700italic,900italic' rel='stylesheet' type='text/css'>
+>>>>>>> master
     {% compress css %}
         <link rel='stylesheet' href="{% static 'puput/css/bootstrap.min.css' %}" type='text/css'/>
         <link rel="stylesheet" href="{% static 'puput/css/font-awesome.min.css' %}">
@@ -41,7 +47,7 @@
             <div class="blog_sidebar">
                 <div class="rss-sitemap">
                     <a href="{% feeds_url blog_page %}" target="_blank" title="RSS">
-                         <i class="fa fa-rss-square"></i> <span>Feed RSS</span>
+                         <i class="fa fa-rss-square"></i> <span>{% trans 'Feed RSS' %}</span>
                     </a>
                 </div>
                 <form name="search_form" class="search_form" method="get" action="{% routablepageurl blog_page "entries_search" %}">

@@ -34,16 +34,18 @@ def get_email(package):
 setup(
     name='puput',
     version=get_version('puput'),
-    packages=find_packages(),
+    packages=find_packages(exclude=('*.tests*')),
     include_package_data=True,
     keywords="django wagtail puput blog cms app",
     description='A Django blog app implemented in Wagtail.',
     long_description=codecs.open(os.path.join(os.path.dirname(__file__), 'README.rst'), encoding='utf-8').read(),
     install_requires=[
-        'Django>=1.7.1,<1.9',
+        # By default, pick the latest stable version of Django that's officially supported by Wagtail.
+        'Django>=1.8.1,<1.12',
+
+        'django-compressor>=1.6',
         'wagtail>=1.0,<2.0',
-        'django-el-pagination==2.1.1',
-        'tapioca-disqus==0.1.2',
+        'django-el-pagination>=2.1.1',
     ],
     url='http://github.com/APSL/puput',
     author=get_author('puput'),

@@ -1,13 +1,13 @@
-import operator
-from tapioca.exceptions import ClientError
-from tapioca_disqus import Disqus
-
 from django.http import Http404, HttpResponse
 from django.views.generic import View
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.decorators import method_decorator
 
 from wagtail.wagtailcore import hooks
 
+from .comments import get_num_comments_with_disqus
 from .models import EntryPage
+from .utils import strip_prefix_and_ending_slash
 
 
 class EntryPageServe(View):
@@ -22,13 +22,24 @@ class EntryPageServe(View):
     http://wwww.example.com/videblog/2015/10/01/my-first-video
     """
 
+    @method_decorator(ensure_csrf_cookie)
     def get(self, request, *args, **kwargs):
         if not request.site:
             raise Http404
         if request.resolver_match.url_name == 'entry_page_serve_slug':
-            path_components = list(operator.itemgetter(0, -1)(request.path.strip('/').split('/')))
+            # Splitting the request path and obtaining the path_components
+            # this way allows you to place the blog at the level you want on
+            # your sitemap.
+            # Example:
+            # splited_path =  ['es', 'blog', '2016', '06', '23', 'blog-entry']
+            # slicing this way you obtain:
+            # path_components =  ['es', 'blog', 'blog-entry']
+            # with the oldest solution you'll get ['es', 'blog-entry']
+            # and a 404 will be raised
+            splited_path = strip_prefix_and_ending_slash(request.path).split("/")
+            path_components = splited_path[:-4] + splited_path[-1:]
         else:
-            path_components = [request.path.strip('/').split('/')[-1]]
+            path_components = [strip_prefix_and_ending_slash(request.path).split('/')[-1]]
         page, args, kwargs = request.site.root_page.specific.route(request, path_components)
 
         for fn in hooks.get_hooks('before_serve_page'):
@@ -44,14 +55,11 @@ class EntryPageUpdateCommentsView(View):
         try:
             entry_page = EntryPage.objects.get(pk=entry_page_id)
             blog_page = entry_page.blog_page
-            disqus_client = Disqus(api_secret=blog_page.disqus_api_secret)
-            try:
-                params = {'forum': blog_page.disqus_shortname, 'thread': 'ident:{}'.format(entry_page_id)}
-                thread = disqus_client.threads_details().get(params=params)
-                entry_page.num_comments = thread.response.posts().data()
-                entry_page.save()
-                return HttpResponse()
-            except ClientError:
-                raise Http404
+            num_comments = 0
+            if blog_page.disqus_api_secret:
+                num_comments = get_num_comments_with_disqus(blog_page, entry_page)
+            entry_page.num_comments = num_comments
+            entry_page.save()
+            return HttpResponse()
         except EntryPage.DoesNotExist:
             raise Http404

@@ -7,8 +7,9 @@ from django.db import models
 from django.template.defaultfilters import slugify
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils import six
 
-from wagtail.wagtailcore.models import Page
+from wagtail.wagtailcore.models import Page, PageBase
 from wagtail.wagtailadmin.edit_handlers import FieldPanel, MultiFieldPanel
 from wagtail.wagtailimages.edit_handlers import ImageChooserPanel
 from wagtail.wagtailsnippets.models import register_snippet
@@ -17,9 +18,9 @@ from taggit.models import TaggedItemBase, Tag as TaggitTag
 from modelcluster.fields import ParentalKey
 
 from .abstracts import EntryAbstract
-from .utils import import_model
+from .utils import import_model, get_image_model_path
 from .routes import BlogRoutes
-from .managers import TagManager, CategoryManager
+from .managers import TagManager, CategoryManager, BlogManager
 
 Entry = import_model(getattr(settings, 'PUPUT_ENTRY_MODEL', EntryAbstract))
 
@@ -27,7 +28,7 @@ Entry = import_model(getattr(settings, 'PUPUT_ENTRY_MODEL', EntryAbstract))
 class BlogPage(BlogRoutes, Page):
     description = models.CharField(verbose_name=_('Description'), max_length=255, blank=True,
                                    help_text=_("The blog description that will appear under the title."))
-    header_image = models.ForeignKey('wagtailimages.Image', verbose_name=_('Header image'), null=True, blank=True,
+    header_image = models.ForeignKey(get_image_model_path(), verbose_name=_('Header image'), null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='+')
 
     display_comments = models.BooleanField(default=False, verbose_name=_('Display comments'))
@@ -44,6 +45,10 @@ class BlogPage(BlogRoutes, Page):
     num_last_entries = models.IntegerField(default=3, verbose_name=_('Last entries limit'))
     num_popular_entries = models.IntegerField(default=3, verbose_name=_('Popular entries limit'))
     num_tags_entry_header = models.IntegerField(default=5, verbose_name=_('Tags limit entry header'))
+
+    short_feed_description = models.BooleanField(default=True, verbose_name=_('Use short description in feeds'))
+
+    extra = BlogManager()
 
     content_panels = Page.content_panels + [
         FieldPanel('description', classname="full"),
@@ -68,12 +73,14 @@ class BlogPage(BlogRoutes, Page):
             FieldPanel('disqus_api_secret'),
             FieldPanel('disqus_shortname'),
         ], heading=_("Comments")),
+        MultiFieldPanel([
+            FieldPanel('short_feed_description'),
+        ], heading=_("Feeds")),
     ]
     subpage_types = ['puput.EntryPage']
 
     def get_entries(self):
-        field_name = 'owner__%s' % getattr(settings, 'PUPUT_USERNAME_FIELD', 'username')
-        return EntryPage.objects.descendant_of(self).live().order_by('-date').select_related(field_name)
+        return EntryPage.objects.descendant_of(self).live().order_by('-date').select_related('owner')
 
     def get_context(self, request, *args, **kwargs):
         context = super(BlogPage, self).get_context(request, *args, **kwargs)
@@ -82,6 +89,13 @@ class BlogPage(BlogRoutes, Page):
         context['search_type'] = getattr(self, 'search_type', "")
         context['search_term'] = getattr(self, 'search_term', "")
         return context
+
+    @property
+    def last_url_part(self):
+        """
+        Get the BlogPage url without the domain
+        """
+        return self.get_url_parts()[-1]
 
     class Meta:
         verbose_name = _('Blog')
@@ -145,13 +159,13 @@ class EntryPageRelated(models.Model):
     entrypage_to = ParentalKey('EntryPage', verbose_name=_("Entry"), related_name='related_entrypage_to')
 
 
-class EntryPage(Page, Entry):
+class EntryPage(six.with_metaclass(PageBase, Entry, Page)):
     # Search
-    search_fields = Page.search_fields + (
+    search_fields = Page.search_fields + [
         index.SearchField('body'),
         index.SearchField('excerpt'),
         index.FilterField('page_ptr_id')
-    )
+    ]
 
     # Panels
     content_panels = getattr(Entry, 'content_panels', [])
@@ -169,7 +183,7 @@ class EntryPage(Page, Entry):
 
     @property
     def blog_page(self):
-        return BlogPage.objects.ancestor_of(self).first()
+        return self.get_parent().specific
 
     @property
     def related(self):
